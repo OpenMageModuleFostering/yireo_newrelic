@@ -1,7 +1,7 @@
 {
     "name": "OpenMageModuleFostering/Yireo_NewRelic",
     "type": "magento-module",
-    "license": "Open-Source-License",
+    "license": "Simplified-BSD-License",
     "homepage": "",
     "description": "No summary",
     "authors": [
