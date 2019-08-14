@@ -2,7 +2,6 @@
 /**
  * NewRelic plugin for Magento 
  *
- * @category    design_default
  * @package     Yireo_NewRelic
  * @author      Yireo (http://www.yireo.com/)
  * @copyright   Copyright (c) 2013 Yireo (http://www.yireo.com/)
@@ -11,10 +10,22 @@
 
 class Yireo_NewRelic_Model_Profiler
 {
+    /**
+     * Method to initialize the profiler
+     *
+     * @access public
+     * @param null
+     * @return null
+     */
     public static function init()
     {
-        // Only continue when the PHP-extension "newrelic" is found
+        // Do not continue when the PHP-extension "newrelic" is not found
         if(!extension_loaded('newrelic')) {
+            return;
+        }
+
+        // Do not continue when the proper functions are not loaded
+        if(!function_exists('newrelic_add_custom_tracer')) {
             return;
         }
 
@@ -38,10 +49,12 @@ class Yireo_NewRelic_Model_Profiler
         // Register the Magento request (once it is loaded in Magento) with NewRelic
         static $request_logged = false;
         if($request_logged == false) {
-            $request_logged = true;
             $request = Mage::app()->getRequest();
-            if(!empty($request) && function_exists('newrelic_name_transaction')) {
-                newrelic_name_transaction($request->getRequestUri());
+            if (!empty($request)) {
+                $request_logged = true;
+                if (function_exists('newrelic_name_transaction')) {
+                    newrelic_name_transaction($request->getRequestUri());
+                }
             }
         }
     }
@@ -64,7 +77,6 @@ class Yireo_NewRelic_Model_Profiler
     {
         self::$_enabled = true;
         self::$_memory_get_usage = function_exists('memory_get_usage');
-        self::init();
     }
 
     public static function disable()
@@ -75,11 +87,11 @@ class Yireo_NewRelic_Model_Profiler
     public static function reset($timerName)
     {
         self::$_timers[$timerName] = array(
-        	'start'=>false,
-        	'count'=>0,
-        	'sum'=>0,
-        	'realmem'=>0,
-        	'emalloc'=>0,
+            'start'=>false,
+            'count'=>0,
+            'sum'=>0,
+            'realmem'=>0,
+            'emalloc'=>0,
         );
     }
 
@@ -89,12 +101,14 @@ class Yireo_NewRelic_Model_Profiler
             return;
         }
 
+        self::init();
+
         if (empty(self::$_timers[$timerName])) {
             self::reset($timerName);
         }
         if (self::$_memory_get_usage) {
-        	self::$_timers[$timerName]['realmem_start'] = memory_get_usage(true);
-        	self::$_timers[$timerName]['emalloc_start'] = memory_get_usage();
+            self::$_timers[$timerName]['realmem_start'] = memory_get_usage(true);
+            self::$_timers[$timerName]['emalloc_start'] = memory_get_usage();
         }
         self::$_timers[$timerName]['start'] = microtime(true);
         self::$_timers[$timerName]['count'] ++;
@@ -110,7 +124,9 @@ class Yireo_NewRelic_Model_Profiler
         if (!self::$_enabled) {
             return;
         }
-		
+        
+        self::init();
+
         $time = microtime(true); // Get current time as quick as possible to make more accurate calculations
 
         if (empty(self::$_timers[$timerName])) {
@@ -120,8 +136,8 @@ class Yireo_NewRelic_Model_Profiler
             self::$_timers[$timerName]['sum'] += $time-self::$_timers[$timerName]['start'];
             self::$_timers[$timerName]['start'] = false;
             if (self::$_memory_get_usage) {
-	            self::$_timers[$timerName]['realmem'] += memory_get_usage(true)-self::$_timers[$timerName]['realmem_start'];
-    	        self::$_timers[$timerName]['emalloc'] += memory_get_usage()-self::$_timers[$timerName]['emalloc_start'];
+                self::$_timers[$timerName]['realmem'] += memory_get_usage(true)-self::$_timers[$timerName]['realmem_start'];
+                self::$_timers[$timerName]['emalloc'] += memory_get_usage()-self::$_timers[$timerName]['emalloc_start'];
             }
         }
     }
@@ -151,16 +167,16 @@ class Yireo_NewRelic_Model_Profiler
                 return $count;
 
             case 'realmem':
-            	if (!isset(self::$_timers[$timerName]['realmem'])) {
-            		self::$_timers[$timerName]['realmem'] = -1;
-            	}
-            	return self::$_timers[$timerName]['realmem'];
+                if (!isset(self::$_timers[$timerName]['realmem'])) {
+                    self::$_timers[$timerName]['realmem'] = -1;
+                }
+                return self::$_timers[$timerName]['realmem'];
 
             case 'emalloc':
-            	if (!isset(self::$_timers[$timerName]['emalloc'])) {
-            		self::$_timers[$timerName]['emalloc'] = -1;
-            	}
-            	return self::$_timers[$timerName]['emalloc'];
+                if (!isset(self::$_timers[$timerName]['emalloc'])) {
+                    self::$_timers[$timerName]['emalloc'] = -1;
+                }
+                return self::$_timers[$timerName]['emalloc'];
 
             default:
                 if (!empty(self::$_timers[$timerName][$key])) {
@@ -179,7 +195,8 @@ class Yireo_NewRelic_Model_Profiler
      * Output SQl Zend_Db_Profiler
      *
      */
-    public static function getSqlProfiler($res) {
+    public static function getSqlProfiler($res) 
+    {
         if(!$res){
             return '';
         }

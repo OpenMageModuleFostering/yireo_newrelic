@@ -1,6 +1,6 @@
 <?php
 /**
- * NewRelic plugin for Magento 
+ * NewRelic plugin for Magento
  *
  * @package     Yireo_NewRelic
  * @author      Yireo (http://www.yireo.com/)
@@ -8,54 +8,83 @@
  * @license     Open Source License
  */
 
-class Yireo_NewRelic_Model_Observer
+class Yireo_NewRelic_Model_Observer 
 {
-    /*
+    /**
      * Listen to the event controller_action_predispatch
-     * 
+     *
      * @access public
-     * @parameter Varien_Event_Observer $observer
+     * @param Varien_Event_Observer $observer
      * @return $this
      */
-    public function controllerActionPredispatch($observer)
+    public function controllerActionPredispatch($observer) 
     {
-        // Check whether NewRelic can be used
-        if(Mage::helper('newrelic')->isEnabled() == true) {
-
-            // Set the app-name
-            $appname = trim(Mage::helper('newrelic')->getConfigValue('appname'));
-            $license = trim(Mage::helper('newrelic')->getConfigValue('license'));
-            $xmit = true; // @warning: This gives a slight performance overhead - check the NewRelic docs for details
-            if(!empty($appname)) newrelic_set_appname($appname, $license, $xmit);
-
-            // Common settings
-            newrelic_capture_params(true);
+        if (!$this->_isEnabled()) {
+            return $this;
         }
-            
+
+        $this->_setupAppName();
+        $this->_trackControllerAction($observer->getEvent()->getControllerAction());
+
+        // Common settings
+        newrelic_capture_params(true);
+
         return $this;
     }
 
-    /*
-     * Listen to the event core_block_abstract_to_html_after
-     * 
+    /**
+     * Method to setup the app-name
+     *
      * @access public
-     * @parameter Varien_Event_Observer $observer
+     * @param null
      * @return $this
      */
-    public function coreBlockAbstractToHtmlAfter($observer)
+    protected function _setupAppName() 
     {
-        // Only for the frontend
-        if(Mage::app()->getStore()->isAdmin() == true) {
+        $helper = $this->_getHelper();
+        $appname = trim($helper->getAppName());
+        $license = trim($helper->getLicense());
+        $xmit = $helper->isUseXmit();
+
+        if (!empty($appname) && function_exists('newrelic_set_appname')) {
+            newrelic_set_appname($appname, $license, $xmit);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Method to track the controller-action
+     *
+     * @access public
+     * @param Mage_Core_Controller_Front_Action $action
+     * @return $this
+     */
+    protected function _trackControllerAction($action) 
+    {
+        if (!$this->_getHelper()->isTrackController()) {
             return $this;
         }
 
-        // Check whether NewRelic can be used
-        if(Mage::helper('newrelic')->isEnabled() == false) {
-            return $this;
+        $actionName = $action->getFullActionName('/');
+        if (function_exists('newrelic_name_transaction')) {
+            newrelic_name_transaction($actionName);
         }
 
-        // Check whether NewRelic Real User Monitoring is active
-        if(Mage::helper('newrelic')->getConfigValue('real_user_monitoring') == false) {
+        return $this;
+    }
+
+    /**
+     * Post dispatch observer for user tracking
+     *
+     * @access public
+     * @param Varien_Event_Observer $observer
+     * @return $this
+     */
+    public function controllerActionPostdispatch($observer) 
+    {
+        if (!$this->_isEnabled()
+                || !$this->_getHelper()->isUseRUM()){
             return $this;
         }
 
@@ -64,18 +93,22 @@ class Yireo_NewRelic_Model_Observer
         newrelic_add_custom_parameter('magento_request', Mage::getModel('core/url')->getRequest()->getRequestUri());
         newrelic_add_custom_parameter('magento_store_id', Mage::app()->getStore()->getId());
 
-        // Get and set customer-data
+        // Get customer-data
         $customer = Mage::getSingleton('customer/session')->getCustomer();
         $customerName = trim($customer->getName());
-        if(empty($customerName)) $customerName = 'guest';
         $customerEmail = trim($customer->getEmail());
-        if(empty($customerEmail)) $customerEmail = 'guest';
+
+        // Correct empty values
+        if (empty($customerName)) $customerName = 'guest';
+        if (empty($customerEmail)) $customerEmail = 'guest';
+
+        // Set customer-data
         newrelic_add_custom_parameter('magento_customer_email', $customerEmail);
         newrelic_add_custom_parameter('magento_customer_name', $customerName);
 
         // Get and set product-data
         $product = Mage::registry('current_product');
-        if(!empty($product)) {
+        if (!empty($product)) {
             $productSku = $product->getSku();
             newrelic_add_custom_parameter('magento_product_name', $product->getName());
             newrelic_add_custom_parameter('magento_product_sku', $product->getSku());
@@ -84,67 +117,84 @@ class Yireo_NewRelic_Model_Observer
             $productSku = null;
         }
 
+        $category = Mage::registry('current_category');
+        if ($category) {
+            newrelic_add_custom_parameter('magento_category_name', $category->getName());
+            newrelic_add_custom_parameter('magento_category_id', $category->getId());
+        }
+
         // Set user attributes
         newrelic_set_user_attributes($customerEmail, $customerName, $productSku);
 
-        // Fetch objects from this event
-        $transport = $observer->getEvent()->getTransport();
-        $block = $observer->getEvent()->getBlock();
-
-        // Add JavaScript to the header
-        if($block->getNameInLayout() == 'head') {
-            $extraHtml = newrelic_get_browser_timing_header();
-            $html = $transport->getHtml()."\n".$extraHtml;
-            $transport->setHtml($html);
-        }
-
-        // Add JavaScript to the footer
-        if($block->getNameInLayout() == 'root') {
-            $extraHtml = newrelic_get_browser_timing_footer();
-            $html = str_replace('</body>', $extraHtml."\n".'</body>', $transport->getHtml());
-            $transport->setHtml($html);
-        }
-
         return $this;
     }
 
-    /*
+    /**
      * Listen to the event model_save_after
-     * 
+     *
      * @access public
-     * @parameter Varien_Event_Observer $observer
+     * @param Varien_Event_Observer $observer
      * @return $this
      */
-    public function modelSaveAfter($observer)
+    public function modelSaveAfter($observer) 
     {
-        // Check whether NewRelic can be used
-        if(Mage::helper('newrelic')->isEnabled() == false) {
+        if ($this->_isEnabled()) {
             return $this;
         }
 
+        if (!function_exists('newrelic_custom_metric')) {
+            return $this;
+        }
         $object = $observer->getEvent()->getObject();
-        newrelic_custom_metric('Magento/'.get_class($object).'_Save', 1);
+        newrelic_custom_metric('Magento/' . get_class($object) . '_Save', 1);
 
         return $this;
     }
 
-    /*
+    /**
      * Listen to the event model_delete_after
-     * 
+     *
      * @access public
-     * @parameter Varien_Event_Observer $observer
+     * @param Varien_Event_Observer $observer
      * @return $this
      */
-    public function modelDeleteAfter($observer)
+    public function modelDeleteAfter($observer) 
     {
-        // Check whether NewRelic can be used
-        if(Mage::helper('newrelic')->isEnabled() == false) {
+        if (!$this->_isEnabled()) {
+            return $this;
+        }
+
+        if (!function_exists('newrelic_custom_metric')) {
             return $this;
         }
 
         $object = $observer->getEvent()->getObject();
-        newrelic_custom_metric('Magento/'.get_class($object).'_Delete', 1);
+        newrelic_custom_metric('Magento/' . get_class($object) . '_Delete', 1);
 
         return $this;
+    }
+
+    /**
+     * Method to check wether this module can be used or not
+     *
+     * @access public
+     * @param null
+     * @return bool
+     */
+    protected function _isEnabled() 
+    {
+        return $this->_getHelper()->isEnabled();
+    }
+
+    /**
+     * Method to return the helper
+     *
+     * @access public
+     * @param null
+     * @return Yireo_NewRelic_Helper_Data
+     */
+    protected function _getHelper() 
+    {
+        return Mage::helper('newrelic');
     }
 }

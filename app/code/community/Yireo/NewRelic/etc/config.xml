@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
 /**
- * NewRelic plugin for Magento 
+ * NewRelic plugin for Magento
  *
  * @package     Yireo_NewRelic
  * @author      Yireo
@@ -12,7 +12,7 @@
 <config>
     <modules>
         <Yireo_NewRelic>
-            <version>1.1.0</version>
+            <version>1.2.0</version>
         </Yireo_NewRelic>
     </modules>
 
@@ -32,25 +32,30 @@
                 <class>Yireo_NewRelic_Model</class>
             </newrelic>
         </models>
+    </global>
+
+    <frontend>
         <events>
             <controller_action_predispatch>
                 <observers>
                     <magebridge_controller_action_predispatch>
                         <type>singleton</type>
-                        <class>Yireo_NewRelic_Model_Observer</class>
+                        <class>newrelic/observer</class>
                         <method>controllerActionPredispatch</method>
                     </magebridge_controller_action_predispatch>
                 </observers>
             </controller_action_predispatch>
-            <core_block_abstract_to_html_after>
+
+            <controller_action_postdispatch>
                 <observers>
-                    <newrelic_core_block_abstract_to_html_after>
+                    <newrelic_controller_action_postdispatch>
                         <type>singleton</type>
-                        <class>Yireo_NewRelic_Model_Observer</class>
-                        <method>coreBlockAbstractToHtmlAfter</method>
-                    </newrelic_core_block_abstract_to_html_after>
+                        <class>newrelic/observer</class>
+                        <method>controllerActionPostdispatch</method>
+                    </newrelic_controller_action_postdispatch>
                 </observers>
-            </core_block_abstract_to_html_after>
+            </controller_action_postdispatch>
+
             <model_save_after>
                 <observers>
                     <newrelic_model_save_after>
@@ -60,6 +65,7 @@
                     </newrelic_model_save_after>
                 </observers>
             </model_save_after>
+
             <model_delete_after>
                 <observers>
                     <newrelic_model_delete_after>
@@ -70,7 +76,15 @@
                 </observers>
             </model_delete_after>
         </events>
-    </global>
+
+        <layout>
+            <updates>
+                <newrelic module="newrelic">
+                    <file>newrelic.xml</file>
+                </newrelic>
+            </updates>
+        </layout>
+    </frontend>
 
     <adminhtml>
         <acl>
@@ -93,4 +107,15 @@
             </resources>
         </acl>
     </adminhtml>
+
+    <default>
+        <newrelic>
+            <settings>
+                <enabled>1</enabled>
+                <track_controller>1</track_controller>
+                <real_user_monitoring>0</real_user_monitoring>
+                <xmit>1</xmit>
+            </settings>
+        </newrelic>
+    </default>
 </config>
