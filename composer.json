@@ -1,16 +1,19 @@
 {
-    "name": "OpenMageModuleFostering/Yireo_NewRelic",
+    "name": "OpenMageModuleFostering\/Yireo_NewRelic",
     "type": "magento-module",
     "license": "Simplified-BSD-License",
     "homepage": "",
     "description": "No summary",
     "authors": [
-    {
-        "name": "Yireo",
-        "email": "info@yireo.com"
-    }
-],
+        {
+            "name": "Yireo",
+            "email": "info@yireo.com"
+        }
+    ],
     "suggest": {
-        "magento-hackathon/magento-composer-installer": "*"
-    }
+        "magento-hackathon\/magento-composer-installer": "*"
+    },
+    "keywords": [
+        "openmage-module"
+    ]
 }
